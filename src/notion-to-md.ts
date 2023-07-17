@@ -12,6 +12,8 @@ import {
   ConfigurationOptions,
   MdStringObject,
   BlockType,
+  MdBlockPageData,
+  MarkdownIdtentityType,
 } from "./types";
 import * as md from "./utils/md";
 import { getBlockChildren } from "./utils/notion";
@@ -110,18 +112,21 @@ export class NotionToMarkdown {
             }
           });
         } else if (mdBlocks.type === "child_page") {
-          const childPageTitle = mdBlocks.parent;
-          let mdstr = this.toMarkdownString(mdBlocks.children, childPageTitle);
+          const childPageIdentifier = mdBlocks.pageData !== undefined 
+            ? mdBlocks.pageData.id
+            : mdBlocks.parent;
+
+          let mdstr = this.toMarkdownString(mdBlocks.children, childPageIdentifier);
 
           if (this.config.separateChildPage) {
             mdOutput = { ...mdOutput, ...mdstr };
           } else {
             mdOutput[pageIdentifier] = mdOutput[pageIdentifier] || "";
-            if (mdstr[childPageTitle]) {
+            if (mdstr[childPageIdentifier]) {
               // child page heading followed by child page content
               mdOutput[
                 pageIdentifier
-              ] += `\n${childPageTitle}\n${mdstr[childPageTitle]}`;
+              ] += `\n${childPageIdentifier}\n${mdstr[childPageIdentifier]}`;
             }
           }
         } else if (mdBlocks.type === "toggle") {
@@ -163,7 +168,8 @@ export class NotionToMarkdown {
    */
   async pageToMarkdown(
     id: string,
-    totalPage: number | null = null
+    totalPage: number | null = null,
+    identityType: MarkdownIdtentityType = MarkdownIdtentityType.PageTitle
   ): Promise<MdBlock[]> {
     if (!this.notionClient) {
       throw new Error(
@@ -172,7 +178,7 @@ export class NotionToMarkdown {
     }
     const blocks = await getBlockChildren(this.notionClient, id, totalPage);
 
-    const parsedData = await this.blocksToMarkdown(blocks);
+    const parsedData = await this.blocksToMarkdown(blocks, null, [], identityType);
 
     return parsedData;
   }
@@ -187,7 +193,8 @@ export class NotionToMarkdown {
   async blocksToMarkdown(
     blocks?: ListBlockChildrenResponseResults,
     totalPage: number | null = null,
-    mdBlocks: MdBlock[] = []
+    mdBlocks: MdBlock[] = [],
+    identityType: MarkdownIdtentityType = MarkdownIdtentityType.PageTitle
   ): Promise<MdBlock[]> {
     if (!this.notionClient) {
       throw new Error(
@@ -222,6 +229,9 @@ export class NotionToMarkdown {
         mdBlocks.push({
           type: block.type,
           blockId: block.id,
+          pageData: block.type === "child_page" && identityType === MarkdownIdtentityType.PageId 
+            ? await this.getBlockPageData(block)
+            : undefined,
           parent: await this.blockToMarkdown(block),
           children: [],
         });
@@ -253,6 +263,27 @@ export class NotionToMarkdown {
       });
     }
     return mdBlocks;
+  }
+
+  async getBlockPageData(block: ListBlockChildrenResponseResult): Promise<MdBlockPageData> {    
+    const childBlocks = await this.notionClient.blocks.children.list({
+      block_id: block.id,              
+    });
+    debugger;
+    // @ts-ignore
+    const pageId = childBlocks.results[0].parent.page_id.replace(/-/g, "");
+
+    var page = await this.notionClient.pages.retrieve({
+      page_id: pageId.replace(/-/g, "")
+    })
+
+    const page_data: MdBlockPageData = {
+      id: pageId.replace(/-/g, ""),      
+      // @ts-ignore
+      title: page.properties.title.title[0].plain_text,
+    };
+
+    return page_data;
   }
 
   /**
