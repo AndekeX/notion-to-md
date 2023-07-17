@@ -10,7 +10,7 @@
     "prepare": "npm run build",
     "build": "tsc",
     "prebuild": "npm run clean",
-    "clean": "",
+    "clean": "rm -rf ./build",
     "test": "jest",
     "test:watch": "jest -w"
   },
