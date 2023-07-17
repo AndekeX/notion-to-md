@@ -73,9 +73,15 @@ export type MdStringObject = Record<string, string>;
 export type MdBlock = {
   type?: string;
   blockId: string;
+  pageData?: MdBlockPageData;
   parent: string;
   children: MdBlock[];
 };
+
+export type MdBlockPageData = {
+  id: string;
+  title: string;
+}
 
 export type Annotations = {
   bold: boolean;
@@ -144,3 +150,8 @@ export type CalloutIcon =
 export type CustomTransformer = (
   block: ListBlockChildrenResponseResult
 ) => string | boolean | Promise<string | boolean>;
+
+export enum MarkdownIdtentityType {
+  PageId = "pageId",
+  PageTitle = "pageTitle",
+}
